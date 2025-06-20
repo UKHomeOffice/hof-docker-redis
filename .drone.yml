@@ -20,14 +20,7 @@ steps:
       DRONE_GIT_TOKEN:
         from_secret: drone_git_token
     commands:
-    # Initialize an empty repo, Add remote with credentials, Enable sparse checkout and Specify the file you want, finally pull only the file we want
-    - git init hof-services-config
-    - cd hof-services-config
-    - git remote add origin https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
-    - git config core.sparseCheckout true 
-    - echo "hof-services-config/infrastructure/trivy/.trivyignore.yaml" >> .git/info/sparse-checkout
-    - git pull origin master
-    #  - git clone https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
+    - git clone https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
     when:
       branch:
         include:
