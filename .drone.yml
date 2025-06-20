@@ -1,37 +1,106 @@
-pipeline:
+---
+kind: pipeline
+name: default
+type: kubernetes
 
-  build_docker_image:
-    image: docker:17.09.1
-    environment:
-      - DOCKER_HOST=tcp://172.17.0.1:2375
-    commands:
-      - docker build -t redis:$${DRONE_COMMIT_SHA} . --no-cache
+environment:
+  IMAGE_URL: quay.io/ukhomeofficedigital
+  IMAGE_REPO: hof-docker-redis
 
-  latest_image_to_quay:
-    image: docker:17.09.1
-    secrets:
-      - docker_password
+trigger:
+  branch:
+    - master
+
+steps:
+  - name: clone_repos
+    image: alpine/git
     environment:
-      - DOCKER_HOST=tcp://172.17.0.1:2375
+      DRONE_GIT_USERNAME:
+        from_secret: drone_git_username
+      DRONE_GIT_TOKEN:
+        from_secret: drone_git_token
     commands:
-      - docker login -u="ukhomeofficedigital+drone_docker_redis" -p="$${DOCKER_PASSWORD}" quay.io
-      - docker tag redis:$${DRONE_COMMIT_SHA} quay.io/ukhomeofficedigital/redis:latest
-      - docker tag redis:$${DRONE_COMMIT_SHA} quay.io/ukhomeofficedigital/redis:$${DRONE_COMMIT_SHA}
-      - docker push quay.io/ukhomeofficedigital/redis:latest
-      - docker push quay.io/ukhomeofficedigital/redis:$${DRONE_COMMIT_SHA}
+    # Initialize an empty repo, Add remote with credentials, Enable sparse checkout and Specify the file you want, finally pull only the file we want
+    - git init hof-services-config
+    - cd hof-services-config
+    - git remote add origin https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
+    - git config core.sparseCheckout true 
+    - echo "hof-services-config/infrastructure/trivy/.trivyignore.yaml" >> .git/info/sparse-checkout
+    - git pull origin master
+    #  - git clone https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
     when:
-      event: push
+      branch:
+        include:
+        - master
+      event: [push, pull_request, tag]
+
+  # Trivy Security Scannner for scanning OS related vulnerabilities in Base image of Dockerfile
+  - name: scan_base_image_os
+    pull: always
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/trivy/client:latest
+    resources:
+      limits:
+        cpu: 1000
+        memory: 1024Mi
+    environment:
+      IMAGE_NAME: fedora:43
+      SERVICE_URL: https://acp-trivy-helm.acp-trivy.svc.cluster.local:443
+      SEVERITY: MEDIUM,HIGH,CRITICAL  --dependency-tree
+      FAIL_ON_DETECTION: false
+      IGNORE_UNFIXED: false
+      ALLOW_CVE_LIST_FILE: hof-services-config/infrastructure/trivy/.trivyignore.yaml
+    volumes:
+      - name: dockersock
+        path: /root/.dockersock
+    when:
+      event: [push, pull_request, tag]
+
+  - name: build_image
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+    commands:
+      - n=0; while [ "$n" -lt 60 ] && [ ! docker stats --no-stream ]; do n=$(( n + 1 )); sleep 1; done
+      - docker build --no-cache -t $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} .
+    volumes:
+      - name: dockersock
+        path: /var/run
+    when:
       branch: master
+      event: [push, pull_request, tag]
 
-  tag_image_to_quay:
-    image: docker:17.09.1
-    secrets:
-      - docker_password
+  # Trivy Security Scannner for scanning nodejs packages in Yarn
+  - name: scan_repo_and_final_image
+    pull: always
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/trivy/client:latest
+    resources:
+      limits:
+        cpu: 1000
+        memory: 1024Mi
     environment:
-      - DOCKER_HOST=tcp://172.17.0.1:2375
+      IMAGE_NAME: $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
+      SEVERITY: MEDIUM,HIGH,CRITICAL  --dependency-tree
+      FAIL_ON_DETECTION: false
+      IGNORE_UNFIXED: false
+      ALLOW_CVE_LIST_FILE: hof-services-config/infrastructure/trivy/.trivyignore.yaml
     commands:
-      - docker login -u="ukhomeofficedigital+drone_docker_redis" -p="$${DOCKER_PASSWORD}" quay.io
-      - docker tag redis:$${DRONE_COMMIT_SHA} quay.io/ukhomeofficedigital/redis:$${DRONE_TAG}
-      - docker push quay.io/ukhomeofficedigital/redis:$${DRONE_TAG}
+      - trivy image --severity MEDIUM,HIGH,CRITICAL --dependency-tree --scanners vuln --ignorefile $${ALLOW_CVE_LIST_FILE} $${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
+      - trivy repo --branch ${DRONE_SOURCE_BRANCH} --severity MEDIUM,HIGH,CRITICAL --dependency-tree --scanners vuln --ignorefile $${ALLOW_CVE_LIST_FILE} https://github.com/adityababumallisettiHO/hof-docker-redis
+    volumes:
+      - name: dockersock
+        path: /var/run 
     when:
-      event: tag
+      event: [push, pull_request, tag]
+
+# Automatically push Docker image to Quay when a Git tag is created on the master branch, Users should reference the image using the format: image_repo_url:tag@digestsha for immutability and traceability.
+  - name: push_tag_to_quay
+    pull: if-not-exists
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+    environment:
+      DOCKER_PASSWORD:
+        from_secret: DOCKER_PASSWORD
+    commands:
+    - docker login -u="ukhomeofficedigital+hof_docker_redis" -p=$${DOCKER_PASSWORD} quay.io
+    - docker tag $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_TAG}
+    - docker push $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_TAG}
+    when:
+      branch: master
+      event: [tag]
