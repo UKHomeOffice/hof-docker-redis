@@ -20,14 +20,7 @@ steps:
       DRONE_GIT_TOKEN:
         from_secret: drone_git_token
     commands:
-    # Initialize an empty repo, Add remote with credentials, Enable sparse checkout and Specify the file you want, finally pull only the file we want
-    - git init hof-services-config
-    - cd hof-services-config
-    - git remote add origin https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
-    - git config core.sparseCheckout true 
-    - echo "hof-services-config/infrastructure/trivy/.trivyignore.yaml" >> .git/info/sparse-checkout
-    - git pull origin master
-    #  - git clone https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
+    - git clone https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
     when:
       branch:
         include:
@@ -43,7 +36,7 @@ steps:
         cpu: 1000
         memory: 1024Mi
     environment:
-      IMAGE_NAME: fedora:43
+      IMAGE_NAME: rockylinux:9.3.20231119-minimal@sha256:197b1569a8e5d46de75412cfd80b88a437d25bb2a5338dc82d5421d835245ec7
       SERVICE_URL: https://acp-trivy-helm.acp-trivy.svc.cluster.local:443
       SEVERITY: MEDIUM,HIGH,CRITICAL  --dependency-tree
       FAIL_ON_DETECTION: false
@@ -58,7 +51,7 @@ steps:
   - name: build_image
     image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
     commands:
-      - n=0; while [ "$n" -lt 60 ] && [ ! docker stats --no-stream ]; do n=$(( n + 1 )); sleep 1; done
+      - n=0; while [ "$n" -lt 60 ] && ! docker stats --no-stream >/dev/null 2>&1; do n=$(( n + 1 )); sleep 1; done
       - docker build --no-cache -t $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} .
     volumes:
       - name: dockersock
@@ -66,6 +59,23 @@ steps:
     when:
       branch: master
       event: [push, pull_request, tag]
+
+  - name: image_to_quay
+    pull: if-not-exists
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+    environment:
+      DOCKER_PASSWORD:
+        from_secret: DOCKER_PASSWORD
+    commands:
+    - docker login -u="ukhomeofficedigital+hof_docker_redis" -p=$${DOCKER_PASSWORD} quay.io
+    - docker tag $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
+    - docker push $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
+    when:
+      branch:
+        include:
+          - master
+          - feature/*
+      event: [push, pull_request]
 
   # Trivy Security Scannner for scanning nodejs packages in Yarn
   - name: scan_repo_and_final_image
@@ -83,7 +93,7 @@ steps:
       ALLOW_CVE_LIST_FILE: hof-services-config/infrastructure/trivy/.trivyignore.yaml
     commands:
       - trivy image --severity MEDIUM,HIGH,CRITICAL --dependency-tree --scanners vuln --ignorefile $${ALLOW_CVE_LIST_FILE} $${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
-      - trivy repo --branch ${DRONE_SOURCE_BRANCH} --severity MEDIUM,HIGH,CRITICAL --dependency-tree --scanners vuln --ignorefile $${ALLOW_CVE_LIST_FILE} https://github.com/adityababumallisettiHO/hof-docker-redis
+      - trivy repo --branch ${DRONE_SOURCE_BRANCH} --severity MEDIUM,HIGH,CRITICAL --dependency-tree --scanners vuln --ignorefile $${ALLOW_CVE_LIST_FILE} https://github.com/UKHomeOffice/hof-docker-redis
     volumes:
       - name: dockersock
         path: /var/run 
@@ -91,7 +101,7 @@ steps:
       event: [push, pull_request, tag]
 
 # Automatically push Docker image to Quay when a Git tag is created on the master branch, Users should reference the image using the format: image_repo_url:tag@digestsha for immutability and traceability.
-  - name: push_tag_to_quay
+  - name: push_image_and_tag_to_quay
     pull: if-not-exists
     image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
     environment:
@@ -104,3 +114,13 @@ steps:
     when:
       branch: master
       event: [tag]
+
+services:
+  - name: docker
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+...
