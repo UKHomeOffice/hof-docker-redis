@@ -97,3 +97,13 @@ steps:
     when:
       branch: master
       event: [tag]
+
+services:
+  - name: docker
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+...
