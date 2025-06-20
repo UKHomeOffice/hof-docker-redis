@@ -8,7 +8,7 @@ COPY redis.conf /etc/redis.conf
 COPY redis-sentinel.conf /etc/redis-sentinel.conf
 
 
-RUN groupadd --system redis && useradd --system --ingroup redis redis
+RUN groupadd --system redis && useradd --system -g redis --create-home redis
 
 RUN chown redis:redis /run.sh && \
     chown redis:redis /etc/redis.conf && \
