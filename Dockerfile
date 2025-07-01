@@ -16,8 +16,6 @@ RUN chown redis:redis /run.sh && \
     chown redis:redis /etc/redis.conf && \
     chown redis:redis /etc/redis-sentinel.conf
 
-RUN user redis on nopass ~* +@all
-
 # Set user to be the redis UID
 USER 994
 
