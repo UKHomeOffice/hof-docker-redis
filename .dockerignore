@@ -1,0 +1,13 @@
+LICENSE.md
+README.md
+CONTRIBUTING.md
+.drone.yml
+pull_request_template.md
+Dockerfile
+.dockerignore
+.cache
+.drone.yml
+kube
+.git
+.gitignore
+hof-services-config
