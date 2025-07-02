@@ -1,7 +1,12 @@
-FROM fedora:29
+FROM rockylinux:9.3.20231119@sha256:d644d203142cd5b54ad2a83a203e1dee68af2229f8fe32f52a30c6e1d3c3a9e0
 
-RUN dnf upgrade -y && dnf clean all
-RUN dnf install -y redis-5.0.6-1.fc29 hostname && dnf clean all
+RUN dnf install -y https://rpms.remirepo.net/enterprise/remi-release-9.rpm && \
+    dnf module enable -y redis:remi-7.0 && \
+    dnf install -y redis hostname && \
+    dnf upgrade -y && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf /tmp/*
+
 
 COPY run.sh /run.sh
 COPY redis.conf /etc/redis.conf
