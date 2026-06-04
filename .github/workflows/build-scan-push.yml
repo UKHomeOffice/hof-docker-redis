@@ -1,0 +1,45 @@
+name: Building and scanning Docker images
+
+on:
+    pull_request:
+        branches:
+            - CCL-*
+    push:
+        branches:
+            - CCL-*
+  
+jobs:
+    prepare-tag:
+        runs-on: ubuntu-latest
+        outputs:
+            short_sha: ${{ steps.tag-vars.outputs.short_sha }}
+            sanitized_branch: ${{ steps.tag-vars.outputs.sanitized_branch }}
+        steps:
+            - id: tag-vars
+              env:
+                  RAW_BRANCH: ${{ github.head_ref || github.ref_name }}
+              run: |
+                  short_sha="${GITHUB_SHA::8}"
+                  sanitized_branch="$(echo "$RAW_BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9.-]+/-/g; s/^-+//; s/-+$//')"
+                  sanitized_branch="${sanitized_branch:0:40}"
+                  echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+                  echo "sanitized_branch=$sanitized_branch" >> "$GITHUB_OUTPUT"
+
+    build-scan:
+        needs: prepare-tag
+        permissions:
+            contents: read
+            id-token: write
+        uses: Home-Office-Digital/core-cloud-workflow-docker-actions/.github/workflows/build-scan-push.yml@feature/CCL-8872 
+        with:
+            working_directory: "."
+            dockerfile: "Dockerfile"
+            image_name: "hff/hff-redis"
+            image_tag: "${{ needs.prepare-tag.outputs.sanitized_branch }}-${{ needs.prepare-tag.outputs.short_sha }}"
+            tag_latest: true
+            trivy_ignorefiles: ".trivyignore"
+        secrets:
+            AWS_ECR_ACCOUNT_ID: ${{ secrets.AWS_ECR_ACCOUNT_ID }}
+            ROLE_TO_ASSUME: ${{ secrets.ROLE_TO_ASSUME }}
+            AWS_BASE_ECR_ACCOUNT_ID: ${{ secrets.AWS_BASE_ECR_ACCOUNT_ID }}
+            BASE_ROLE_TO_ASSUME: arn:aws:iam::${{ secrets.AWS_BASE_ECR_ACCOUNT_ID }}:role/cc-bootstrap-ecr-github-push-role
