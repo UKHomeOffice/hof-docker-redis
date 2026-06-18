@@ -41,5 +41,3 @@ jobs:
         secrets:
             AWS_ECR_ACCOUNT_ID: ${{ secrets.AWS_ECR_ACCOUNT_ID }}
             ROLE_TO_ASSUME: ${{ secrets.ROLE_TO_ASSUME }}
-            AWS_BASE_ECR_ACCOUNT_ID: ${{ secrets.AWS_BASE_ECR_ACCOUNT_ID }}
-            BASE_ROLE_TO_ASSUME: arn:aws:iam::${{ secrets.AWS_BASE_ECR_ACCOUNT_ID }}:role/cc-bootstrap-ecr-github-push-role
