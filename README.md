@@ -15,21 +15,32 @@ documentation](http://redis.io/topics/sentinel).
 
 ## Launching it in kubernetes
 
-First of all create a single replica pod of redis and redis-sentinel. Both
+## LMR Redis persistence decision
+
+For LMR session persistence, this repository uses a `StatefulSet` (`kube/redis-controller.yaml`) with per-pod EBS-backed PVC.
+
+StatefulSet is the recommended default for Redis in Kubernetes because it provides stable pod identity and durable per-replica storage.
+
+Before rollout, align with HOF on:
+
+1. Snapshot and backup policy (frequency, retention, restore ownership).
+
+First create the headless Redis service, then the Redis workload. Both
 containers will notice that `${REDIS_SENTINEL_SERVICE_HOST}` and
 `${REDIS_SENTINEL_SERVICE_PORT}` are empty and assume that this is an initial
 bootstrap of redis. Redis sentinel will connect to the master at `$(hostname
 -i)` and start monitoring it.
 
 ```
-kubectl create -f kube/redis-controller.yaml
+kubectl apply -f kube/redis-headless-service.yaml
+kubectl apply -f kube/redis-controller.yaml
 ```
 
 Then you need to create redis sentinel service, which will become your redis
 sentinel endpoint for the following redis pods.
 
 ```
-kubectl create -f kube/redis-sentinel-service.yaml
+kubectl apply -f kube/redis-sentinel-service.yaml
 ```
 
 Once the service is up and running, you can check whether it is working
@@ -43,11 +54,39 @@ Next, we can start scaling our redis out. It is recommended to add redis and
 redis-sentinel replicas one by one.
 
 ```
-kubectl scale rc redis --replicas=2
+kubectl scale statefulset redis --replicas=2
 ```
 
 Wait a minute and check on the sentinel service `redis-cli -h
 ${REDIS_SENTINEL_SERVICE_HOST} -p 26379 INFO`, then scale to `--replicas=3`.
+
+## EBS PVC configuration
+
+The StatefulSet in `kube/redis-controller.yaml` uses:
+
+- `volumeClaimTemplates`
+- `storageClassName: gp3`
+- `accessModes: ReadWriteOnce`
+- `storage: 5Gi`
+
+Update `storageClassName` and size to match your cluster policy if needed.
+
+## Backup and snapshot options
+
+Two practical options for EBS-backed Redis data:
+
+1. EBS CSI VolumeSnapshots:
+	- Create `VolumeSnapshotClass` and scheduled `VolumeSnapshot` resources.
+	- Restore by creating a new PVC from a snapshot.
+2. AWS Backup for EBS:
+	- Tag and include PVC-backed EBS volumes in a backup plan.
+	- Manage retention and cross-region copy in AWS Backup policies.
+
+Suggested baseline:
+
+- Hourly snapshot retention for 24 hours.
+- Daily snapshot retention for 14 to 30 days.
+- Restore test at least once per quarter.
 
 ## Git Tags and Release Workflow
 
