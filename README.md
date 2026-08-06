@@ -15,15 +15,9 @@ documentation](http://redis.io/topics/sentinel).
 
 ## Launching it in kubernetes
 
-## LMR Redis persistence decision
+## Redis persistence
 
-For LMR session persistence, this repository uses a `StatefulSet` (`kube/redis-controller.yaml`) with per-pod EBS-backed PVC.
-
-StatefulSet is the recommended default for Redis in Kubernetes because it provides stable pod identity and durable per-replica storage.
-
-Before rollout, align with HOF on:
-
-1. Snapshot and backup policy (frequency, retention, restore ownership).
+This repository uses a `StatefulSet` (`kube/redis-controller.yaml`) with per-pod EBS-backed PVC.
 
 First create the headless Redis service, then the Redis workload. Both
 containers will notice that `${REDIS_SENTINEL_SERVICE_HOST}` and
