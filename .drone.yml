@@ -76,7 +76,7 @@ steps:
         cpu: 1000
         memory: 1024Mi
     environment:
-      IMAGE_NAME: ${IMAGE_REPO}:${DRONE_COMMIT_SHA}
+      IMAGE_NAME: hof-docker-redis:${DRONE_COMMIT_SHA}
       SEVERITY: MEDIUM,HIGH,CRITICAL --pkg-types os,library --dependency-tree
       FAIL_ON_DETECTION: false
       IGNORE_UNFIXED: false
@@ -173,7 +173,7 @@ steps:
     image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/trivy/client:latest
     pull: always
     environment:
-      IMAGE_NAME: ${IMAGE_REPO}:${DRONE_COMMIT_SHA}
+      IMAGE_NAME: hof-docker-redis:${DRONE_COMMIT_SHA}
       SEVERITY: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --vuln-type os,library --dependency-tree
       FAIL_ON_DETECTION: true
       IGNORE_UNFIXED: false
