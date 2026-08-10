@@ -1,4 +1,5 @@
 FROM alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+
 RUN apk add --no-cache bash redis=8.4.2-r0 && \
     mkdir -p /var/lib/redis /var/run/redis && \
     chown -R 994:994 /var/lib/redis /var/run/redis
