@@ -5,10 +5,13 @@ RUN apk add --no-cache bash redis=8.4.2-r0 && \
     chown -R 994:994 /var/lib/redis /var/run/redis
 
 COPY --chown=994:994 run.sh /run.sh
+COPY --chown=994:994 entrypoint.sh /entrypoint.sh
 COPY --chown=994:994 redis.conf /etc/redis.conf
 COPY --chown=994:994 redis-sentinel.conf /etc/redis-sentinel.conf
+
+RUN chmod +x /entrypoint.sh
 
 # Run as fixed non-root UID for compatibility with existing deployment expectations
 USER 994
 
-CMD /bin/bash -c "/run.sh ${SENTINEL_HOST} ${SENTINEL_PORT}"
+CMD ["/entrypoint.sh"]
