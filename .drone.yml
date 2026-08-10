@@ -67,6 +67,42 @@ steps:
           - master
       event: [push, pull_request, tag]
 
+  - name: image_to_quay
+    pull: if-not-exists
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+    environment:
+      DOCKER_PASSWORD:
+        from_secret: DOCKER_PASSWORD
+    commands:
+    - docker login -u="ukhomeofficedigital+hof_docker_redis" -p=$${DOCKER_PASSWORD} quay.io
+    - docker tag $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
+    - docker push $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
+    when:
+      branch:
+        include:
+          - master
+      event: [push, pull_request]
+    depends_on:
+      - scan_final_image
+
+# Automatically push Docker image to Quay when a Git tag is created on the master branch,
+# Users should reference the image using the format: image_repo_url:tag@digestsha for immutability and traceability.
+  - name: push_tag_to_quay
+    pull: if-not-exists
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+    environment:
+      DOCKER_PASSWORD:
+        from_secret: DOCKER_PASSWORD
+    commands:
+    - docker login -u="ukhomeofficedigital+hof_docker_redis" -p=$${DOCKER_PASSWORD} quay.io
+    - docker tag $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_TAG}
+    - docker push $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_TAG}
+    when:
+      branch: master
+      event: [tag]
+    depends_on:
+      - scan_final_image
+
   # Trivy Security Scannner for scanning nodejs packages in Yarn
   - name: scan_final_image
     pull: always
@@ -92,46 +128,6 @@ steps:
     depends_on:
       - build_image
 
-  - name: image_to_quay
-    pull: if-not-exists
-    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
-    environment:
-      DOCKER_PASSWORD:
-        from_secret: DOCKER_PASSWORD
-    commands:
-    - docker login -u="ukhomeofficedigital+hof_docker_redis" -p=$${DOCKER_PASSWORD} quay.io
-    - docker tag $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
-    - docker push $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_COMMIT_SHA}
-    when:
-      branch:
-        include:
-          - master
-      event: [push, pull_request]
-    depends_on:
-      - scan_final_image
-
-  # Automatically push Docker image to Quay when a Git tag is created on the master branch,
-  # Users should reference the image using the format: image_repo_url:tag@digestsha for immutability and traceability.
-  - name: push_tag_to_quay
-    pull: if-not-exists
-    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
-    environment:
-      DOCKER_PASSWORD:
-        from_secret: DOCKER_PASSWORD
-    commands:
-    - docker login -u="ukhomeofficedigital+hof_docker_redis" -p=$${DOCKER_PASSWORD} quay.io
-    - docker tag $${IMAGE_REPO}:$${DRONE_COMMIT_SHA} $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_TAG}
-    - docker push $${IMAGE_URL}/$${IMAGE_REPO}:$${DRONE_TAG}
-    when:
-      branch:
-        include:
-          - master
-      event:
-        include:
-          - tag
-    depends_on:
-      - scan_final_image
-
   # CRON job steps that runs security scans using Trivy
   - name: cron_clone_repos
     image: alpine/git
@@ -143,12 +139,8 @@ steps:
     commands:
       - git clone https://$${DRONE_GIT_USERNAME}:$${DRONE_GIT_TOKEN}@github.com/UKHomeOfficeForms/hof-services-config.git
     when:
-      cron:
-        include:
-          - security_scans
-      event:
-        include:
-          - cron
+      cron: security_scans
+      event: cron
 
   - name: cron_build_image
     image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
@@ -159,12 +151,8 @@ steps:
       - name: dockersock
         path: /var/run
     when:
-      cron:
-        include:
-          - security_scans
-      event:
-        include:
-          - cron
+      cron: security_scans
+      event: cron
 
   - name: cron_trivy_scan_image_os
     image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/trivy/client:latest
@@ -176,12 +164,8 @@ steps:
       IGNORE_UNFIXED: false
       ALLOW_CVE_LIST_FILE: hof-services-config/infrastructure/trivy/.trivyignore.yaml
     when:
-      cron:
-        include:
-          - security_scans
-      event:
-        include:
-          - cron
+      cron: security_scans
+      event: cron
 
   - name: cron_trivy_scan_node_packages
     image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/trivy/client:latest
@@ -196,12 +180,8 @@ steps:
       - name: dockersock
         path: /var/run
     when:
-      cron:
-        include:
-          - security_scans
-      event:
-        include:
-          - cron
+      cron: security_scans
+      event: cron
       status: [success, failure]
 
   # Slack notification upon a CRON job fail
@@ -220,12 +200,8 @@ steps:
       webhook:
         from_secret: slack_sas_hof_security_webhook
     when:
-      cron:
-        include:
-          - security_scans
-      event:
-        include:
-          - cron
+      cron: security_scans
+      event: cron
       status: [ failure ]
 
 services:
