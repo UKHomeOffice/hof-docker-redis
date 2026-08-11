@@ -1,9 +1,12 @@
-#!/bin/bash -x
-[[ "${DEBUG}" == "true" ]] && set -x
+#!/bin/bash
+
+# Keep DEBUG=false by default, switch to true only when needed.
+if [[ "${DEBUG}" == "true" ]]; then
+  set -x
+fi
 
 : ${SENTINEL_HOST:=${1}}
 : ${SENTINEL_PORT:=${2}}
-
 
 find_master() {
   if [[ -z ${SENTINEL_HOST} ]] || [[ -z ${SENTINEL_PORT} ]]; then
