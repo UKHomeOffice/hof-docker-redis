@@ -11,3 +11,5 @@ kube
 .git
 .gitignore
 hof-services-config
+.droneignore
+.github

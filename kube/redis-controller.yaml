@@ -26,6 +26,7 @@ spec:
         volumeMounts:
         - mountPath: /var/lib/redis
           name: data
+          
       - name: redis-sentinel
         image: ukhomeofficedigital/redis:latest
         ports:
