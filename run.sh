@@ -1,4 +1,5 @@
 #!/bin/bash -x
+[[ "${DEBUG}" == "true" ]] && set -x
 
 : ${SENTINEL_HOST:=${1}}
 : ${SENTINEL_PORT:=${2}}
