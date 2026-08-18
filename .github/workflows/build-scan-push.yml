@@ -19,7 +19,7 @@ jobs:
         with:
             working_directory: "."
             dockerfile: "Dockerfile"
-            image_name: "hff/hff-redis"
+            image_name: "hof/hof-redis"
             image_tag: "${{ github.event_name == 'pull_request' && format('pr-{0}-{1}', github.event.pull_request.number, github.sha) || github.sha }}"
             tag_latest: true
         secrets:
