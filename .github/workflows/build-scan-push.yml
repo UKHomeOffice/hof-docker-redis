@@ -25,3 +25,22 @@ jobs:
         secrets:
             AWS_ECR_ACCOUNT_ID: ${{ secrets.AWS_ECR_ACCOUNT_ID }}
             ROLE_TO_ASSUME: ${{ secrets.ROLE_TO_ASSUME }}
+
+    build-scan-prod:
+        # Push to the HOFProd ECR only from master, and only once the non-prod
+        # build, scan and push has succeeded.
+        needs: build-scan
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        permissions:
+            contents: read
+            id-token: write
+        uses: Home-Office-Digital/core-cloud-workflow-docker-actions/.github/workflows/build-scan-push.yml@1.4.0
+        with:
+            working_directory: "."
+            dockerfile: "Dockerfile"
+            image_name: "hof/hof-redis"
+            image_tag: "${{ github.sha }}"
+            tag_latest: true
+        secrets:
+            AWS_ECR_ACCOUNT_ID: ${{ secrets.HOFPROD_AWS_ECR_ACCOUNT_ID }}
+            ROLE_TO_ASSUME: ${{ secrets.HOFPROD_ROLE_TO_ASSUME }}
