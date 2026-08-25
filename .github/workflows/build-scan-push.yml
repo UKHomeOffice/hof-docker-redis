@@ -3,15 +3,15 @@ name: Building and scanning Docker images
 on:
     pull_request:
         branches:
-            - master
-            - CCL-*
+            - main
     push:
         branches:
-            - master
-            - CCL-*
+            - main
+            - feature/*
   
 jobs:
-    build-scan:
+    build-scan-hofnotprod:
+        if: github.event_name == 'pull_request'
         permissions:
             contents: read
             id-token: write
@@ -29,8 +29,7 @@ jobs:
     build-scan-prod:
         # Push to the HOFProd ECR only from master, and only once the non-prod
         # build, scan and push has succeeded.
-        needs: build-scan
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         permissions:
             contents: read
             id-token: write
